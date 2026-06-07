@@ -1,7 +1,7 @@
 'use client';
 
 import { createClient } from '@/lib/supabase/client';
-import { User, SupabaseClient } from '@supabase/supabase-js';
+import type { User } from '@supabase/supabase-js';
 import { useRouter } from 'next/navigation';
 import { createContext, useContext, useEffect, useRef, useState } from 'react';
 
@@ -20,22 +20,32 @@ const AuthContext = createContext<AuthContextType>({
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const supabaseRef = useRef<ReturnType<typeof createClient> | null>(null);
+  const [initialized, setInitialized] = useState(false);
   const router = useRouter();
-  const supabaseRef = useRef<SupabaseClient | null>(null);
-
-  // Lazy init supabase client only on the client side
-  if (typeof window !== 'undefined' && !supabaseRef.current) {
-    supabaseRef.current = createClient();
-  }
 
   useEffect(() => {
+    // Runs only on the client after hydration
+    try {
+      supabaseRef.current = createClient();
+    } catch {
+      // Env vars missing — stay unauthenticated
+      setLoading(false);
+      setInitialized(true);
+      return;
+    }
+
     const supabase = supabaseRef.current;
-    if (!supabase) return;
 
     const getUser = async () => {
-      const { data } = await supabase.auth.getUser();
-      setUser(data.user);
+      try {
+        const { data } = await supabase.auth.getUser();
+        setUser(data.user);
+      } catch {
+        // Auth not configured or network error
+      }
       setLoading(false);
+      setInitialized(true);
     };
     getUser();
 
@@ -44,13 +54,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       router.refresh();
     });
 
-    return () => listener.subscription.unsubscribe();
-  }, []);
+    return () => {
+      listener?.subscription?.unsubscribe();
+    };
+  }, [router]);
 
   const signOut = async () => {
-    const supabase = supabaseRef.current;
-    if (!supabase) return;
-    await supabase.auth.signOut();
+    if (!supabaseRef.current) return;
+    await supabaseRef.current.auth.signOut();
     router.push('/');
   };
 

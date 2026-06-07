@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from 'next';
+import Script from 'next/script';
 import './globals.css';
 import { AuthProvider } from '@/components/AuthProvider';
 import { Header } from '@/components/Header';
@@ -29,19 +30,6 @@ export default function RootLayout({
 }) {
   return (
     <html lang="zh-CN">
-      <head>
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `
-              if ('serviceWorker' in navigator) {
-                window.addEventListener('load', function() {
-                  navigator.serviceWorker.register('/sw.js').catch(function() {});
-                });
-              }
-            `,
-          }}
-        />
-      </head>
       <body className="min-h-screen bg-[#0f0f0f] text-[#e5e5e5] antialiased">
         <AuthProvider>
           <Header />
@@ -49,6 +37,15 @@ export default function RootLayout({
             {children}
           </main>
         </AuthProvider>
+        <Script id="sw-register" strategy="afterInteractive">
+          {`
+            if ('serviceWorker' in navigator) {
+              window.addEventListener('load', function() {
+                navigator.serviceWorker.register('/sw.js').catch(function() {});
+              });
+            }
+          `}
+        </Script>
       </body>
     </html>
   );
